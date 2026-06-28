@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: tradeloop-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
