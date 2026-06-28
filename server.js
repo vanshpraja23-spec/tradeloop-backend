@@ -25,7 +25,8 @@ async function callGemini({ systemInstruction, contents }) {
     contents,
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 2000,
+      maxOutputTokens: 4096,
+      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
@@ -54,10 +55,14 @@ async function callGemini({ systemInstruction, contents }) {
 
   const candidate = data?.candidates?.[0];
   const text = candidate?.content?.parts?.map(p => p.text || '').join('') || '';
+  const finishReason = candidate?.finishReason;
+
+  if (finishReason === 'MAX_TOKENS') {
+    throw new Error('Gemini response got cut off before finishing (ran out of output budget). Try again — if this keeps happening, the response may need to be shorter.');
+  }
 
   if (!text) {
     // Common cause: response was blocked by safety filters
-    const finishReason = candidate?.finishReason;
     throw new Error(`No text returned from Gemini${finishReason ? ` (finishReason: ${finishReason})` : ''}`);
   }
 
@@ -67,7 +72,11 @@ async function callGemini({ systemInstruction, contents }) {
 // Strips markdown code fences and parses JSON safely
 function parseJsonResponse(text) {
   const clean = text.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    throw new Error(`Gemini's response wasn't valid JSON (${e.message}). This usually means the response got cut off — try again.`);
+  }
 }
 
 // ================= 1. CHART ANALYSIS =================
